@@ -22,6 +22,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppMenu from 'resource:///org/gnome/shell/ui/appMenu.js';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Shell from 'gi://Shell';
 
 export default class BazaarIntegration extends Extension {
     enable() {
@@ -94,14 +95,19 @@ export default class BazaarIntegration extends Extension {
 
     async _openInBazaar(app) {
         if (!app) return;
-        
+
         const appId = app.get_id();
         if (!appId) return;
-        
+
         const cleanAppId = appId.replace(/\.desktop$/, '');
         const appstreamUri = `appstream:${cleanAppId}`;
 
-        GLib.spawn_command_line_async(`flatpak run io.github.kolunmi.Bazaar ${appstreamUri}`);
+        const bazaarApp = Shell.AppSystem.get_default().lookup_app('io.github.kolunmi.Bazaar.desktop');
+        if (!bazaarApp) return;
+
+        const appInfo = bazaarApp.get_app_info();
+        appInfo.launch_uris([appstreamUri], null);
+
         Main.overview.hide();
     }
 }
