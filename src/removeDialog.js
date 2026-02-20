@@ -157,7 +157,7 @@ function _startUninstallFeedback(appIcon) {
     iconActor.opacity = 180;
 
     const SIZE = iconActor.width * 0.5 || 32;
-    const lineWidth = Math.max(2, SIZE / 12);
+    const lineWidth = Math.max(4, SIZE / 10);
 
     const spinner = new St.DrawingArea({
         width: SIZE,
