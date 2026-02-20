@@ -92,6 +92,20 @@ export default class BazaarIntegration extends Extension {
         return isFlatpak;
     }
 
+    _isNativeBazaar() {
+        const bazaarApp = Gio.AppInfo.get_all().find(info =>
+            info.get_id() === 'io.github.kolunmi.Bazaar.desktop'
+        );
+        if (!bazaarApp) return false;
+
+        const filename = bazaarApp.get_filename();
+        if (!filename) return false;
+
+        return !filename.includes('/flatpak/exports/share/applications/') &&
+               !filename.includes('/var/lib/flatpak/') &&
+               !filename.startsWith(GLib.get_home_dir() + '/.local/share/flatpak/');
+    }
+
     async _openInBazaar(app) {
         if (!app) return;
         
@@ -101,7 +115,12 @@ export default class BazaarIntegration extends Extension {
         const cleanAppId = appId.replace(/\.desktop$/, '');
         const appstreamUri = `appstream:${cleanAppId}`;
 
-        GLib.spawn_command_line_async(`flatpak run io.github.kolunmi.Bazaar ${appstreamUri}`);
+        const command = this._isNativeBazaar()
+            ? `bazaar ${appstreamUri}`
+            : `flatpak run io.github.kolunmi.Bazaar ${appstreamUri}`;
+
+        console.log(`Bazaar Integration: Launching with command: ${command}`);
+        GLib.spawn_command_line_async(command);
         Main.overview.hide();
     }
 }
