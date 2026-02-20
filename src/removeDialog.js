@@ -101,10 +101,14 @@ function _findAppIcon(appId) {
 }
 
 function makeRadioRow(title, subtitle, radioGroup, isActive) {
-    const row = new St.BoxLayout({
-        vertical: false,
+    const row = new St.Button({
         style_class: 'bazaar-remove-dialog-radio-row',
-        reactive: true,
+        x_expand: true,
+    });
+
+    const inner = new St.BoxLayout({
+        vertical: false,
+        x_expand: true,
     });
 
     const textBox = new St.BoxLayout({
@@ -132,25 +136,22 @@ function makeRadioRow(title, subtitle, radioGroup, isActive) {
         toggle_mode: true,
         checked: isActive,
         y_align: Clutter.ActorAlign.CENTER,
-    });
-
-    radio.connect('notify::checked', () => {
-        if (radio.checked) {
-            for (const other of radioGroup) {
-                if (other !== radio)
-                    other.checked = false;
-            }
-        }
+        reactive: false,
+        can_focus: false,
     });
 
     radioGroup.push(radio);
 
-    row.add_child(radio);
-    row.add_child(textBox);
+    inner.add_child(radio);
+    inner.add_child(textBox);
+    row.set_child(inner);
 
-    row.connect('button-press-event', () => {
+    row.connect('clicked', () => {
         radio.checked = true;
-        return Clutter.EVENT_STOP;
+        for (const other of radioGroup) {
+            if (other !== radio)
+                other.checked = false;
+        }
     });
 
     return { row, radio };

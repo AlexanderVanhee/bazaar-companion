@@ -44,6 +44,14 @@
     spacing: 12px;
 }
 
+.bazaar-remove-dialog-radio-row:first-child {
+    border-radius: 12px 12px 0 0;
+}
+
+.bazaar-remove-dialog-radio-row:last-child {
+    border-radius: 0 0 12px 12px;
+}
+
 .bazaar-remove-dialog-radio-row:hover {
     background-color: rgba(255, 255, 255, 0.07);
 }
@@ -61,6 +69,7 @@
     border-radius: 999px;
     width: 16px;
     height: 16px;
+    margin-right: 12px;
     border: 2px solid rgba(255, 255, 255, 0.4);
     background-color: transparent;
 }
@@ -70,16 +79,4 @@
     width: 8px;
     height: 8px;
     background-color: white;
-}
-
-.bazaar-remove-dialog-radio-button:hover {
-    border-color: rgba(255, 255, 255, 0.6);
-}
-
-
-.bazaar-remove-dialog-radio-button:checked:hover {
-    border: 6px solid -st-accent-color;
-    width: 8px;
-    height: 8px;
-    border-color: rgba(255, 255, 255, 0.6);
 }
