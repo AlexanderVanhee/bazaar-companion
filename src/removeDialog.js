@@ -24,6 +24,7 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
+import Cairo from 'cairo';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 
 async function getInstalledRefs(appId) {
@@ -98,6 +99,73 @@ function _findAppIcon(appId) {
     }
 
     return null;
+}
+
+function _startUninstallFeedback(appIcon) {
+    if (!appIcon) return null;
+
+    const iconActor = appIcon.icon ?? appIcon.get_children().find(c => c instanceof St.Icon) ?? appIcon;
+
+    const desaturateEffect = new Clutter.DesaturateEffect({ factor: 1.0 });
+    iconActor.add_effect_with_name('bazaar-desaturate', desaturateEffect);
+    iconActor.opacity = 180;
+
+    const SIZE = iconActor.width * 0.5 || 32;
+    const lineWidth = Math.max(2, SIZE / 12);
+
+    const spinner = new St.DrawingArea({
+        width: SIZE,
+        height: SIZE,
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    let angle = 0;
+    spinner.connect('repaint', () => {
+        const cr = spinner.get_context();
+        const cx = SIZE / 2;
+        const cy = SIZE / 2;
+        const radius = SIZE / 2 - lineWidth;
+
+        cr.setOperator(Cairo.Operator.CLEAR);
+        cr.paint();
+        cr.setOperator(Cairo.Operator.OVER);
+
+        cr.setLineWidth(lineWidth);
+        cr.setLineCap(Cairo.LineCap.ROUND);
+
+        cr.setSourceRGBA(1, 1, 1, 0.2);
+        cr.arc(cx, cy, radius, 0, 2 * Math.PI);
+        cr.stroke();
+
+        const start = (angle * Math.PI) / 180;
+        const end = start + (270 * Math.PI) / 180;
+        cr.setSourceRGBA(1, 1, 1, 0.9);
+        cr.arc(cx, cy, radius, start, end);
+        cr.stroke();
+
+        cr.$dispose();
+    });
+
+    iconActor.add_child(spinner);
+
+    const rotateTimerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 17, () => {
+        angle = (angle + 5) % 360;
+        spinner.queue_repaint();
+        return GLib.SOURCE_CONTINUE;
+    });
+
+    return { iconActor, spinner, rotateTimerId };
+}
+
+function _stopUninstallFeedback(appIcon, feedbackHandle) {
+    if (!appIcon || !feedbackHandle) return;
+    const { iconActor, spinner, rotateTimerId } = feedbackHandle;
+    GLib.source_remove(rotateTimerId);
+    iconActor.remove_effect_by_name('bazaar-desaturate');
+    iconActor.opacity = 255;
+    iconActor.remove_child(spinner);
+    spinner.destroy();
 }
 
 function makeRadioRow(title, subtitle, radioGroup, isActive) {
@@ -272,18 +340,18 @@ export async function showRemoveDialog(app) {
             const scope = installedRefs[0];
 
             const appIcon = _findAppIcon(appId);
-            if (appIcon)
-                appIcon.hide();
+            const feedbackHandle = _startUninstallFeedback(appIcon);
 
             console.log(`Bazaar Integration: Uninstalling ${appId} ${scope} deleteData=${deleteData}`);
             const success = await uninstallRef(appId, scope, deleteData);
             console.log(`Bazaar Integration: Uninstall ${scope} ${success ? 'succeeded' : 'failed'} for ${appId}`);
 
             if (success) {
+                _stopUninstallFeedback(appIcon, feedbackHandle);
+                appIcon?.hide();
                 showNotification(`${appName} Uninstalled`, `${appName} was successfully removed.`);
             } else {
-                if (appIcon)
-                    appIcon.show();
+                _stopUninstallFeedback(appIcon, feedbackHandle);
                 showNotification(`Failed to Remove ${appName}`, `Could not uninstall ${appName}. Try using Bazaar instead.`, true);
             }
         }

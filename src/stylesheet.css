@@ -56,6 +56,10 @@
     background-color: rgba(255, 255, 255, 0.07);
 }
 
+.bazaar-remove-dialog-radio-row:active {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
 .bazaar-remove-dialog-radio-title {
     font-size: 14.66px
 }
