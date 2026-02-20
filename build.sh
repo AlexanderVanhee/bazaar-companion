@@ -12,7 +12,8 @@ echo "Packing extension..."
 gnome-extensions pack src \
     --force \
     --extra-source="LICENSE" \
-    --extra-source="README.md"
+    --extra-source="README.md" \
+    --extra-source="removeDialog.js"
 
 echo "Packing Done!"
 

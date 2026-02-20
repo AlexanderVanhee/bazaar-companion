@@ -20,9 +20,11 @@
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppMenu from 'resource:///org/gnome/shell/ui/appMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Shell from 'gi://Shell';
+import { showRemoveDialog } from './removeDialog.js';
 
 export default class BazaarIntegration extends Extension {
     enable() {
@@ -30,29 +32,49 @@ export default class BazaarIntegration extends Extension {
         this._originalSetApp = AppMenu.AppMenu.prototype.setApp;
         this._originalAddAction = AppMenu.AppMenu.prototype.addAction;
         const extension = this;
-        
+
         AppMenu.AppMenu.prototype._updateDetailsVisibility = function() {
             const hasBazaar = this._appSystem.lookup_app('io.github.kolunmi.Bazaar.desktop') !== null;
             const isFlatpak = this._app ? extension._isFlatpakApp(this._app) : false;
 
             this._detailsItem.visible = hasBazaar && isFlatpak;
+
+            if (this._removeItem) {
+                this._removeItem.visible = hasBazaar && isFlatpak;
+            }
         };
-        
+
         AppMenu.AppMenu.prototype.setApp = function(app) {
             extension._originalSetApp.call(this, app);
+
+            if (!this._removeItem) {
+                this._removeItem = new PopupMenu.PopupMenuItem('Uninstall');
+                this._removeItem.connect('activate', () => {
+                    showRemoveDialog(this._app);
+                });
+
+                const items = this._getMenuItems();
+                const detailsIndex = items.indexOf(this._detailsItem);
+                if (detailsIndex !== -1) {
+                    this.addMenuItem(this._removeItem, detailsIndex + 1);
+                } else {
+                    this.addMenuItem(this._removeItem);
+                }
+            }
+
             this._updateDetailsVisibility();
         };
-        
+
         AppMenu.AppMenu.prototype.addAction = function(label, callback) {
             const item = extension._originalAddAction.call(this, label, callback);
-            
+
             if (label === 'App Details' || label === _('App Details')) {
                 item.disconnect(item._activateId);
                 item._activateId = item.connect('activate', async () => {
                     extension._openInBazaar(this._app);
                 });
             }
-            
+
             return item;
         };
     }
@@ -62,12 +84,12 @@ export default class BazaarIntegration extends Extension {
             AppMenu.AppMenu.prototype._updateDetailsVisibility = this._originalUpdateDetailsVisibility;
             this._originalUpdateDetailsVisibility = null;
         }
-        
+
         if (this._originalSetApp) {
             AppMenu.AppMenu.prototype.setApp = this._originalSetApp;
             this._originalSetApp = null;
         }
-        
+
         if (this._originalAddAction) {
             AppMenu.AppMenu.prototype.addAction = this._originalAddAction;
             this._originalAddAction = null;
@@ -76,20 +98,19 @@ export default class BazaarIntegration extends Extension {
 
     _isFlatpakApp(app) {
         if (!app) return false;
-        
+
         const appInfo = app.get_app_info();
         if (!appInfo) return false;
-        
+
         const filename = appInfo.get_filename();
         if (!filename) return false;
-        
+
         // Check if the Desktop file is in a Flatpak directory
         const isFlatpak = filename.includes('/flatpak/exports/share/applications/') ||
                          filename.includes('/var/lib/flatpak/') ||
                          filename.startsWith(GLib.get_home_dir() + '/.local/share/flatpak/');
-        
+
         console.log(`Bazaar Integration: Is Flatpak (by path): ${isFlatpak}`);
-        
         return isFlatpak;
     }
 
@@ -111,4 +132,3 @@ export default class BazaarIntegration extends Extension {
         Main.overview.hide();
     }
 }
-
