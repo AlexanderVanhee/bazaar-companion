@@ -81,24 +81,70 @@ function showNotification(title, body, isError = false) {
     source.addNotification(notification);
 }
 
-function _findAppIcon(appId) {
-    const appDisplay = Main.overview._overview._controls._appDisplay;
+function _findAppIcons(appId) {
+    const icons = [];
+    const desktopId = `${appId}.desktop`;
 
-    for (const child of appDisplay._orderedItems) {
-        if (child._id === `${appId}.desktop` || child._id === appId)
-            return child;
-    }
-
-    for (const child of appDisplay._orderedItems) {
-        if (child._folder) {
-            for (const folderChild of child.view._orderedItems) {
-                if (folderChild._id === `${appId}.desktop` || folderChild._id === appId)
-                    return folderChild;
+    const appDisplay = Main.overview._overview?._controls?._appDisplay;
+    if (appDisplay) {
+        for (const child of appDisplay._orderedItems) {
+            if (child._id === desktopId || child._id === appId)
+                icons.push(child);
+            if (child._folder) {
+                for (const folderChild of child.view._orderedItems) {
+                    if (folderChild._id === desktopId || folderChild._id === appId)
+                        icons.push(folderChild);
+                }
             }
         }
     }
 
-    return null;
+    const dash = Main.overview.dash;
+    if (dash) {
+        const dashChildren = dash._box?.get_children() ?? [];
+        for (const dashItem of dashChildren) {
+            const child = dashItem.child;
+            if (!child || !child.app)
+                continue;
+            const dashAppId = child.app.get_id();
+            if (dashAppId === desktopId || dashAppId === appId)
+                icons.push(child);
+        }
+    }
+
+    const searchResults = Main.overview._overview?._controls?._searchController?._searchResults;
+    if (searchResults) {
+        for (const provider of searchResults._providers) {
+            const display = provider.display;
+            if (!display?._resultDisplays)
+                continue;
+            for (const resultId in display._resultDisplays) {
+                if (resultId === desktopId || resultId === appId)
+                    icons.push(display._resultDisplays[resultId]);
+            }
+        }
+    }
+
+    return icons;
+}
+
+function _disableAppIcons(appIcons) {
+    for (const icon of appIcons) {
+        icon.reactive = false;
+        icon.can_focus = false;
+    }
+}
+
+function _enableAppIcons(appIcons) {
+    for (const icon of appIcons) {
+        icon.reactive = true;
+        icon.can_focus = true;
+    }
+}
+
+function _hideAppIcons(appIcons) {
+    for (const icon of appIcons)
+        icon?.hide();
 }
 
 function _startUninstallFeedback(appIcon) {
@@ -166,6 +212,21 @@ function _stopUninstallFeedback(appIcon, feedbackHandle) {
     iconActor.opacity = 255;
     iconActor.remove_child(spinner);
     spinner.destroy();
+}
+
+function _startUninstallFeedbacks(appIcons) {
+    const handles = [];
+    for (const icon of appIcons) {
+        const handle = _startUninstallFeedback(icon);
+        if (handle)
+            handles.push({ appIcon: icon, feedbackHandle: handle });
+    }
+    return handles;
+}
+
+function _stopUninstallFeedbacks(handles) {
+    for (const { appIcon, feedbackHandle } of handles)
+        _stopUninstallFeedback(appIcon, feedbackHandle);
 }
 
 function makeRadioRow(title, subtitle, radioGroup, isActive) {
@@ -338,20 +399,20 @@ export async function showRemoveDialog(app) {
         'Uninstall',
         async (deleteData) => {
             const scope = installedRefs[0];
-
-            const appIcon = _findAppIcon(appId);
-            const feedbackHandle = _startUninstallFeedback(appIcon);
+            const appIcons = _findAppIcons(appId);
+            _disableAppIcons(appIcons);
+            const handles = _startUninstallFeedbacks(appIcons);
 
             console.log(`Bazaar Integration: Uninstalling ${appId} ${scope} deleteData=${deleteData}`);
             const success = await uninstallRef(appId, scope, deleteData);
             console.log(`Bazaar Integration: Uninstall ${scope} ${success ? 'succeeded' : 'failed'} for ${appId}`);
 
+            _stopUninstallFeedbacks(handles);
             if (success) {
-                _stopUninstallFeedback(appIcon, feedbackHandle);
-                appIcon?.hide();
+                _hideAppIcons(appIcons);
                 showNotification(`${appName} Uninstalled`, `${appName} was successfully removed.`);
             } else {
-                _stopUninstallFeedback(appIcon, feedbackHandle);
+                _enableAppIcons(appIcons);
                 showNotification(`Failed to Remove ${appName}`, `Could not uninstall ${appName}. Try using Bazaar instead.`, true);
             }
         }
