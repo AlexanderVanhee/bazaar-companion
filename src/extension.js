@@ -22,6 +22,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as AppMenu from 'resource:///org/gnome/shell/ui/appMenu.js';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Shell from 'gi://Shell';
 
 export default class BazaarIntegration extends Extension {
     enable() {
@@ -92,35 +93,21 @@ export default class BazaarIntegration extends Extension {
         return isFlatpak;
     }
 
-    _isNativeBazaar() {
-        const bazaarApp = Gio.AppInfo.get_all().find(info =>
-            info.get_id() === 'io.github.kolunmi.Bazaar.desktop'
-        );
-        if (!bazaarApp) return false;
-
-        const filename = bazaarApp.get_filename();
-        if (!filename) return false;
-
-        return !filename.includes('/flatpak/exports/share/applications/') &&
-               !filename.includes('/var/lib/flatpak/') &&
-               !filename.startsWith(GLib.get_home_dir() + '/.local/share/flatpak/');
-    }
-
     async _openInBazaar(app) {
         if (!app) return;
-        
+
         const appId = app.get_id();
         if (!appId) return;
-        
+
         const cleanAppId = appId.replace(/\.desktop$/, '');
         const appstreamUri = `appstream:${cleanAppId}`;
 
-        const command = this._isNativeBazaar()
-            ? `bazaar ${appstreamUri}`
-            : `flatpak run io.github.kolunmi.Bazaar ${appstreamUri}`;
+        const bazaarApp = Shell.AppSystem.get_default().lookup_app('io.github.kolunmi.Bazaar.desktop');
+        if (!bazaarApp) return;
 
-        console.log(`Bazaar Integration: Launching with command: ${command}`);
-        GLib.spawn_command_line_async(command);
+        const appInfo = bazaarApp.get_app_info();
+        appInfo.launch_uris([appstreamUri], null);
+
         Main.overview.hide();
     }
 }
